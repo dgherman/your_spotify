@@ -27,10 +27,11 @@ export default function History() {
   const { interval } = useSelector(selectRawIntervalDetail);
   const { interval: allInterval } = useSelector(selectRawAllInterval);
   const [followInterval, setFollowInterval] = useState(true);
-  const { items, hasMore, onNext } = useInfiniteScroll(
+  const { items: rawItems, hasMore, onNext } = useInfiniteScroll(
     followInterval ? interval : allInterval,
     api.getTracks,
   );
+  const items = rawItems.filter(item => !!item.track);
 
   const handleSetFollowInterval = (value: boolean) => {
     setFollowInterval(value);

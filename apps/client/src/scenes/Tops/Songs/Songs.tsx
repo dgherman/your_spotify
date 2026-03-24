@@ -24,10 +24,11 @@ import { PlaylistContext } from "../../../services/redux/modules/playlist/types"
 export default function Songs() {
   const { interval } = useSelector(selectRawIntervalDetail);
 
-  const { items, hasMore, onNext } = useInfiniteScroll(
+  const { items: rawItems, hasMore, onNext } = useInfiniteScroll(
     interval,
     api.getBestSongs,
   );
+  const items = rawItems.filter(item => !!item.track);
 
   const context: PlaylistContext = {
     type: "top",
