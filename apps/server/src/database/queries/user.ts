@@ -221,33 +221,52 @@ export const getSongs = async (
   offset: number,
   number: number,
   inter?: { start: Date; end: Date },
-  match?: Record<string, any>,
-) => {
-  const fullUser = await UserModel.findById(userId).populate({
-    path: "tracks",
-    model: "Infos",
-    match: {
-      ...(inter
-        ? { played_at: { $gt: inter.start, $lt: inter.end } }
-        : undefined),
-      blacklistedBy: { $exists: 0 },
-      ...match,
+) =>
+  InfosModel.aggregate([
+    {
+      $match: {
+        owner: new Types.ObjectId(userId),
+        ...(inter
+          ? { played_at: { $gt: inter.start, $lt: inter.end } }
+          : undefined),
+        blacklistedBy: { $exists: 0 },
+      },
     },
-    options: { skip: offset, limit: number, sort: { played_at: -1 } },
-    populate: {
-      path: "track",
-      model: "Track",
-      populate: [
-        { path: "full_album", model: "Album" },
-        { path: "full_artists", model: "Artist" },
-      ],
+    { $sort: { played_at: -1 } },
+    {
+      $lookup: {
+        from: "tracks",
+        localField: "id",
+        foreignField: "id",
+        as: "track",
+      },
     },
-  });
-  if (!fullUser) {
-    return [];
-  }
-  return fullUser.tracks;
-};
+    { $unwind: "$track" },
+    { $skip: offset },
+    { $limit: number },
+    {
+      $lookup: {
+        from: "albums",
+        localField: "track.album",
+        foreignField: "id",
+        as: "track.full_album",
+      },
+    },
+    {
+      $unwind: {
+        path: "$track.full_album",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $lookup: {
+        from: "artists",
+        localField: "track.artists",
+        foreignField: "id",
+        as: "track.full_artists",
+      },
+    },
+  ]);
 
 export const getUserCount = () => UserModel.countDocuments();
 export const getUser = (nb: number) =>
