@@ -16,6 +16,7 @@ const validators = {
   OFFLINE_DEV_ID: z.string().optional(),
   COOKIE_VALIDITY_MS: z.string().optional(),
   MONGO_NO_ADMIN_RIGHTS: z.preprocess(toBoolean, z.boolean().optional()),
+  LOOP_INTERVAL_MS: z.preprocess(toNumber, z.number().optional()),
   PROMETHEUS_USERNAME: z.string().optional(),
   PROMETHEUS_PASSWORD: z.string().optional(),
 } as const;

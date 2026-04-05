@@ -1,3 +1,4 @@
+import { AxiosError } from "axios";
 import { logger } from "./logger";
 
 export const wait = (ms: number) =>
@@ -273,6 +274,32 @@ export function beforeParenthesis(str: string) {
   return str;
 }
 
+export class SpotifyRateLimitError extends Error {
+  public readonly retryAfterMs: number;
+
+  constructor(retryAfterSeconds: number) {
+    const waitSeconds = retryAfterSeconds + 60;
+    super(
+      `Spotify rate limited, retry-after: ${retryAfterSeconds}s (waiting ${waitSeconds}s with buffer)`,
+    );
+    this.retryAfterMs = waitSeconds * 1000;
+  }
+}
+
+function getRetryAfterSeconds(error: unknown): number | null {
+  if (
+    error instanceof AxiosError &&
+    error.response?.status === 429 &&
+    error.response.headers["retry-after"]
+  ) {
+    const value = Number(error.response.headers["retry-after"]);
+    if (!Number.isNaN(value) && value > 0) {
+      return value;
+    }
+  }
+  return null;
+}
+
 export const retryPromise = async <T>(
   fn: () => Promise<T>,
   max: number,
@@ -286,10 +313,16 @@ export const retryPromise = async <T>(
   for (let i = 0; i < max; i += 1) {
     const isLastTry = i === max - 1;
     try {
-
       const res = await fn();
       return res;
     } catch (e) {
+      const retryAfter = getRetryAfterSeconds(e);
+      if (retryAfter !== null) {
+        logger.warn(
+          `Spotify rate limited (429), retry-after: ${retryAfter}s. Stopping retries and bubbling up.`,
+        );
+        throw new SpotifyRateLimitError(retryAfter);
+      }
       lastError = e;
       logger.error(
         `Retrying crashed promise, ${i + 1}/${max}${isLastTry ? "" : `, retrying in ${timeSeconds} seconds...`

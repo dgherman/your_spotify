@@ -4,10 +4,11 @@ import { getCloseTrackId, getUser, getUserCount } from "../database";
 import { RecentlyPlayedTrack } from "../database/schemas/track";
 import { User } from "../database/schemas/user";
 import { logger } from "../tools/logger";
-import { retryPromise, wait } from "../tools/misc";
+import { retryPromise, SpotifyRateLimitError, wait } from "../tools/misc";
 import { SpotifyAPI } from "../tools/apis/spotifyApi";
 import { Infos } from "../database/schemas/info";
 import { getTracksAlbumsArtists, storeIterationOfLoop } from "./dbTools";
+import { getWithDefault } from "../tools/env";
 
 const RETRY = 10;
 
@@ -95,12 +96,14 @@ const loop = async (user: User) => {
   );
 };
 
-const WAIT_MS = 120 * 1000;
+const DEFAULT_WAIT_MS = 10 * 60 * 1000;
 
 export const dbLoop = async () => {
   // return;
-   
+
   while (true) {
+    const loopIntervalMs = getWithDefault("LOOP_INTERVAL_MS", DEFAULT_WAIT_MS);
+    let waitMs = loopIntervalMs;
     try {
       const nbUsers = await getUserCount();
       logger.info(`[DbLoop] starting for ${nbUsers} users`);
@@ -110,6 +113,14 @@ export const dbLoop = async () => {
           try {
             await loop(us);
           } catch (error) {
+            if (error instanceof SpotifyRateLimitError) {
+              const waitMinutes = Math.ceil(error.retryAfterMs / 60000);
+              logger.warn(
+                `[${us.username}]: Spotify rate limited, pausing all polling for ${waitMinutes} minutes`,
+              );
+              waitMs = Math.max(waitMs, error.retryAfterMs);
+              break;
+            }
             logger.error(`[${us.username}]: Error during refresh`, error);
             if (error instanceof AxiosError) {
               if (error.response?.data) {
@@ -129,6 +140,7 @@ export const dbLoop = async () => {
         process.exit(1);
       }
     }
-    await wait(WAIT_MS);
+    logger.info(`[DbLoop] next cycle in ${Math.ceil(waitMs / 1000)}s`);
+    await wait(waitMs);
   }
 };
