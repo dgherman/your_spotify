@@ -142,7 +142,7 @@ export class PrivacyImporter
       return acc;
     }, []);
 
-    if (!this.initWithJSONContent(totalContent)) {
+    if (!(await this.initWithJSONContent(totalContent))) {
       return false;
     }
 

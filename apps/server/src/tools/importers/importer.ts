@@ -103,6 +103,8 @@ export async function runImporter<T extends ImporterStateTypes>(
       if (existingState) {
         await cleanupImport(existingState._id.toString());
       }
+      clearCache(userId);
+      delete userImporters[userId];
       return initDone(false);
     }
     if (existingState) {

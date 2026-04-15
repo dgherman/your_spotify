@@ -146,7 +146,7 @@ export class FullPrivacyImporter
 			return acc;
 		}, []);
 
-		if (!this.initWithJSONContent(totalContent)) {
+		if (!(await this.initWithJSONContent(totalContent))) {
 			return false;
 		}
 
