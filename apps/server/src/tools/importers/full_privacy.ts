@@ -13,7 +13,7 @@ import {
 	storeTrackAlbumArtist,
 } from "../../spotify/dbTools";
 import { logger } from "../logger";
-import { minOfArray, retryPromise } from "../misc";
+import { minOfArray, retryPromise, SpotifyRateLimitError, wait } from "../misc";
 import { SpotifyAPI } from "../apis/spotifyApi";
 import { Unpack } from "../types";
 import { Infos } from "../../database/schemas/info";
@@ -178,7 +178,20 @@ export class FullPrivacyImporter
 		if (ids.length < 45 && !force) {
 			return idsToSearch;
 		}
-		const searchedItems = await this.search(ids);
+		let searchedItems: Awaited<ReturnType<typeof this.search>>;
+		try {
+			searchedItems = await this.search(ids);
+		} catch (e) {
+			if (e instanceof SpotifyRateLimitError) {
+				const waitMinutes = Math.ceil(e.retryAfterMs / 60000);
+				logger.warn(
+					`Rate limited during import, waiting ${waitMinutes} minutes before resuming...`,
+				);
+				await wait(e.retryAfterMs);
+				return idsToSearch;
+			}
+			throw e;
+		}
 		for (const [index, searchedItem] of searchedItems.entries()) {
 			const id = ids[index];
 			if (!id) {

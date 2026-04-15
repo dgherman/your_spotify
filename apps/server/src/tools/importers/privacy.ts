@@ -19,6 +19,8 @@ import {
   minOfArray,
   removeDiacritics,
   retryPromise,
+  SpotifyRateLimitError,
+  wait,
 } from "../misc";
 import { SpotifyAPI } from "../apis/spotifyApi";
 import { Unpack } from "../types";
@@ -211,7 +213,20 @@ export class PrivacyImporter
         content.artistName,
       );
       if (!item) {
-        item = await this.trySearching(content.artistName, content.trackName);
+        try {
+          item = await this.trySearching(content.artistName, content.trackName);
+        } catch (e) {
+          if (e instanceof SpotifyRateLimitError) {
+            const waitMinutes = Math.ceil(e.retryAfterMs / 60000);
+            logger.warn(
+              `Rate limited during import, waiting ${waitMinutes} minutes before resuming...`,
+            );
+            await wait(e.retryAfterMs);
+            i -= 1;
+            continue;
+          }
+          throw e;
+        }
         setToCache(
           this.userId.toString(),
           content.trackName,
