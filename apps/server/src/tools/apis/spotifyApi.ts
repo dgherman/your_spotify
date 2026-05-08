@@ -147,8 +147,17 @@ export class SpotifyAPI {
 			});
 			return res.data as SpotifyTrack;
 		} catch (e) {
-			if (e instanceof AxiosError && e.response?.status === 404) {
-				return undefined;
+			if (e instanceof AxiosError) {
+				const status = e.response?.status;
+				if (status === 404) {
+					return undefined;
+				}
+				if (status === 403 || status === 429) {
+					logger.warn(
+						`getTrack ${id} returned ${status}, treating as missing`,
+					);
+					return undefined;
+				}
 			}
 			throw e;
 		}
@@ -171,8 +180,17 @@ export class SpotifyAPI {
 			});
 			return res.data as SpotifyAlbum;
 		} catch (e) {
-			if (e instanceof AxiosError && e.response?.status === 404) {
-				return undefined;
+			if (e instanceof AxiosError) {
+				const status = e.response?.status;
+				if (status === 404) {
+					return undefined;
+				}
+				if (status === 403 || status === 429) {
+					logger.warn(
+						`getAlbum ${id} returned ${status}, treating as missing`,
+					);
+					return undefined;
+				}
 			}
 			throw e;
 		}
@@ -195,8 +213,17 @@ export class SpotifyAPI {
 			});
 			return res.data as SpotifyArtist;
 		} catch (e) {
-			if (e instanceof AxiosError && e.response?.status === 404) {
-				return undefined;
+			if (e instanceof AxiosError) {
+				const status = e.response?.status;
+				if (status === 404) {
+					return undefined;
+				}
+				if (status === 403 || status === 429) {
+					logger.warn(
+						`getArtist ${id} returned ${status}, treating as missing`,
+					);
+					return undefined;
+				}
 			}
 			throw e;
 		}
