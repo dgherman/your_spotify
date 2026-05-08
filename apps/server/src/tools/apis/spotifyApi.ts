@@ -155,31 +155,12 @@ export class SpotifyAPI {
 	}
 
 	async getTracks(spotifyIds: string[]) {
-		const result: (SpotifyTrack | undefined)[] = [];
-		for (const ids of chunk(spotifyIds, 50)) {
-			try {
-				const res = await squeue.queue(async () => {
-					await this.checkToken();
-					return this.client.get(`/tracks?ids=${ids.join(",")}`);
-				});
-				const tracks = (res.data?.tracks ?? []) as (SpotifyTrack | null)[];
-				for (const t of tracks) {
-					result.push(t ?? undefined);
-				}
-			} catch (e) {
-				if (
-					e instanceof AxiosError &&
-					(e.response?.status === 403 || e.response?.status === 404)
-				) {
-					for (let i = 0; i < ids.length; i += 1) {
-						result.push(undefined);
-					}
-					continue;
-				}
-				throw e;
-			}
+		const tracks: (SpotifyTrack | undefined)[] = [];
+		for (const id of spotifyIds) {
+			const track = await this.getTrack(id);
+			tracks.push(track);
 		}
-		return result;
+		return tracks;
 	}
 
 	async getAlbum(id: string) {
@@ -198,31 +179,12 @@ export class SpotifyAPI {
 	}
 
 	async getAlbums(spotifyIds: string[]) {
-		const result: (SpotifyAlbum | undefined)[] = [];
-		for (const ids of chunk(spotifyIds, 20)) {
-			try {
-				const res = await squeue.queue(async () => {
-					await this.checkToken();
-					return this.client.get(`/albums?ids=${ids.join(",")}`);
-				});
-				const albums = (res.data?.albums ?? []) as (SpotifyAlbum | null)[];
-				for (const a of albums) {
-					result.push(a ?? undefined);
-				}
-			} catch (e) {
-				if (
-					e instanceof AxiosError &&
-					(e.response?.status === 403 || e.response?.status === 404)
-				) {
-					for (let i = 0; i < ids.length; i += 1) {
-						result.push(undefined);
-					}
-					continue;
-				}
-				throw e;
-			}
+		const albums: (SpotifyAlbum | undefined)[] = [];
+		for (const id of spotifyIds) {
+			const album = await this.getAlbum(id);
+			albums.push(album);
 		}
-		return result;
+		return albums;
 	}
 
 	async getArtist(id: string) {
@@ -241,31 +203,12 @@ export class SpotifyAPI {
 	}
 
 	async getArtists(spotifyIds: string[]) {
-		const result: (SpotifyArtist | undefined)[] = [];
-		for (const ids of chunk(spotifyIds, 50)) {
-			try {
-				const res = await squeue.queue(async () => {
-					await this.checkToken();
-					return this.client.get(`/artists?ids=${ids.join(",")}`);
-				});
-				const artists = (res.data?.artists ?? []) as (SpotifyArtist | null)[];
-				for (const a of artists) {
-					result.push(a ?? undefined);
-				}
-			} catch (e) {
-				if (
-					e instanceof AxiosError &&
-					(e.response?.status === 403 || e.response?.status === 404)
-				) {
-					for (let i = 0; i < ids.length; i += 1) {
-						result.push(undefined);
-					}
-					continue;
-				}
-				throw e;
-			}
+		const artists: (SpotifyArtist | undefined)[] = [];
+		for (const id of spotifyIds) {
+			const artist = await this.getArtist(id);
+			artists.push(artist);
 		}
-		return result;
+		return artists;
 	}
 
 	public async search(track: string, artist: string) {

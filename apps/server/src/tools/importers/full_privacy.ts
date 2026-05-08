@@ -24,6 +24,17 @@ import {
 	ImporterStateTypes,
 } from "./types";
 
+interface ImportStats {
+	processed: number;
+	stored: number;
+	skippedShort: number;
+	skippedNoMetadata: number;
+	skippedNoSpotifyId: number;
+	skippedNotFound: number;
+	skippedDuplicate: number;
+	cacheHits: number;
+}
+
 const fullPrivacyFileSchema = z.array(
 	z.object({
 		ts: z.string(),
@@ -59,16 +70,15 @@ export class FullPrivacyImporter
 
 	static idFromSpotifyURI = (uri: string) => uri.split(":")[2];
 
-	search = async (spotifyIds: string[]) => {
-		if (spotifyIds.length === 0) {
-			return [];
-		}
-		const res = await retryPromise(
-			() => this.spotifyApi.getTracks(spotifyIds),
+	searchByNameArtist = async (
+		trackName: string,
+		artistName: string,
+	) => {
+		return retryPromise(
+			() => this.spotifyApi.search(trackName, artistName),
 			10,
 			30,
 		);
-		return res;
 	};
 
 	storeItems = async (userId: string, items: RecentlyPlayedTrack[]) => {
@@ -169,86 +179,52 @@ export class FullPrivacyImporter
 		return null;
 	};
 
-	checkIdsToSearch = async (
-		idsToSearch: Record<string, string[]>,
-		items: RecentlyPlayedTrack[],
-		force = false,
-	) => {
-		const ids = Object.keys(idsToSearch);
-		if (ids.length < 45 && !force) {
-			return idsToSearch;
-		}
-		let searchedItems: Awaited<ReturnType<typeof this.search>>;
-		try {
-			searchedItems = await this.search(ids);
-		} catch (e) {
-			if (e instanceof SpotifyRateLimitError) {
-				const waitMinutes = Math.ceil(e.retryAfterMs / 60000);
-				logger.warn(
-					`Rate limited during import, waiting ${waitMinutes} minutes before resuming...`,
-				);
-				await wait(e.retryAfterMs);
-				return idsToSearch;
-			}
-			throw e;
-		}
-		for (const [index, searchedItem] of searchedItems.entries()) {
-			const id = ids[index];
-			if (!id) {
-				continue;
-			}
-			if (searchedItem === undefined) {
-				setToCacheString(this.userId.toString(), id, { exists: false });
-				continue;
-			}
-			const playedAt = idsToSearch[searchedItem.id];
-			if (!playedAt) {
-				logger.error("Cannot add item", searchedItem.id, "no played_at found");
-				continue;
-			}
-			setToCacheString(this.userId.toString(), searchedItem.id, {
-				exists: true,
-				track: searchedItem,
-			});
-			playedAt.forEach((pa) => {
-				items.push({ track: searchedItem, played_at: pa });
-			});
-			logger.info(
-				`Adding ${searchedItem.name} - ${searchedItem.artists[0]?.name} from data`,
-			);
-		}
-		idsToSearch = {};
-		return idsToSearch;
-	};
-
 	run = async (id: string) => {
 		this.id = id;
-		let items: RecentlyPlayedTrack[] = [];
-		// Id of song to played_at
-		let idsToSearch: Record<string, string[]> = {};
 		if (!this.elements) {
 			return false;
 		}
-		for (let i = this.currentItem; i < this.elements.length; i += 1) {
+		const stats: ImportStats = {
+			processed: 0,
+			stored: 0,
+			skippedShort: 0,
+			skippedNoMetadata: 0,
+			skippedNoSpotifyId: 0,
+			skippedNotFound: 0,
+			skippedDuplicate: 0,
+			cacheHits: 0,
+		};
+		let items: RecentlyPlayedTrack[] = [];
+		const total = this.elements.length;
+		const flushItemsIfNeeded = async (force = false) => {
+			if (items.length === 0) {
+				return;
+			}
+			if (!force && items.length < 20) {
+				return;
+			}
+			await this.storeItems(this.userId, items);
+			stats.stored += items.length;
+			items = [];
+		};
+
+		for (let i = this.currentItem; i < total; i += 1) {
 			this.currentItem = i;
-			logger.info(`Importing... (${i}/${this.elements.length})`);
+			stats.processed += 1;
+			if (i % 100 === 0) {
+				logger.info(`Importing... (${i}/${total})`);
+			}
 			const content = this.elements[i]!;
 			if (
 				!content.spotify_track_uri ||
 				!content.master_metadata_track_name ||
 				!content.master_metadata_album_artist_name
 			) {
+				stats.skippedNoMetadata += 1;
 				continue;
 			}
 			if (content.ms_played < 30 * 1000) {
-				// If track was played for less than 30 seconds
-				logger.info(
-					`Track ${content.master_metadata_track_name} - ${
-						content.master_metadata_album_artist_name
-					} was passed, only listened for ${Math.floor(
-						content.ms_played / 1000,
-					)} seconds`,
-				);
+				stats.skippedShort += 1;
 				continue;
 			}
 			const spotifyId = FullPrivacyImporter.idFromSpotifyURI(
@@ -258,27 +234,68 @@ export class FullPrivacyImporter
 				logger.warn(
 					`Could not get spotify id from uri: ${content.spotify_track_uri}`,
 				);
+				stats.skippedNoSpotifyId += 1;
 				continue;
 			}
-			const item = getFromCacheString(this.userId.toString(), spotifyId);
-			if (!item) {
-				const arrayOfPlayedAt = idsToSearch[spotifyId] ?? [];
-				arrayOfPlayedAt.push(content.ts);
-				idsToSearch[spotifyId] = arrayOfPlayedAt;
-				idsToSearch = await this.checkIdsToSearch(idsToSearch, items);
-			} else if (item.exists) {
-				items.push({ track: item.track, played_at: content.ts });
+			const cached = getFromCacheString(this.userId.toString(), spotifyId);
+			if (cached) {
+				stats.cacheHits += 1;
+				if (cached.exists) {
+					items.push({ track: cached.track, played_at: content.ts });
+				} else {
+					stats.skippedNotFound += 1;
+				}
+				await flushItemsIfNeeded();
+				continue;
 			}
-			if (items.length >= 20) {
-				await this.storeItems(this.userId, items);
-				items = [];
+			let track;
+			try {
+				track = await this.searchByNameArtist(
+					content.master_metadata_track_name,
+					content.master_metadata_album_artist_name,
+				);
+			} catch (e) {
+				if (e instanceof SpotifyRateLimitError) {
+					const waitMinutes = Math.ceil(e.retryAfterMs / 60000);
+					logger.warn(
+						`Rate limited during import, waiting ${waitMinutes} minutes before resuming...`,
+					);
+					await wait(e.retryAfterMs);
+					i -= 1;
+					stats.processed -= 1;
+					continue;
+				}
+				throw e;
 			}
+			if (!track) {
+				logger.info(
+					`Not found via search: "${content.master_metadata_track_name}" by "${content.master_metadata_album_artist_name}" (uri ${content.spotify_track_uri})`,
+				);
+				setToCacheString(this.userId.toString(), spotifyId, { exists: false });
+				stats.skippedNotFound += 1;
+				continue;
+			}
+			setToCacheString(this.userId.toString(), spotifyId, {
+				exists: true,
+				track,
+			});
+			if (track.id !== spotifyId) {
+				setToCacheString(this.userId.toString(), track.id, {
+					exists: true,
+					track,
+				});
+			}
+			items.push({ track, played_at: content.ts });
+			logger.info(
+				`Adding ${track.name} - ${track.artists[0]?.name} from search`,
+			);
+			await flushItemsIfNeeded();
 		}
-		await this.checkIdsToSearch(idsToSearch, items, true);
-		if (items.length > 0) {
-			await this.storeItems(this.userId, items);
-			items = [];
-		}
+		await flushItemsIfNeeded(true);
+
+		logger.info(
+			`Import summary: total=${total} processed=${stats.processed} stored=${stats.stored} skippedShort=${stats.skippedShort} skippedNoMetadata=${stats.skippedNoMetadata} skippedNoSpotifyId=${stats.skippedNoSpotifyId} skippedNotFound=${stats.skippedNotFound} skippedDuplicate=${stats.skippedDuplicate} cacheHits=${stats.cacheHits}`,
+		);
 		return true;
 	};
 
