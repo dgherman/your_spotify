@@ -3,5 +3,8 @@
   "version": "1.19.0",
   "repository": "git@github.com:Yooooomi/your_spotify.git",
   "author": "Timothee <timothee.boussus@gmail.com>",
-  "private": true
+  "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": ["core-js", "unrs-resolver"]
+  }
 }
