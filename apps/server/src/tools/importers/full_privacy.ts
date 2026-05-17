@@ -21,7 +21,6 @@ import { getFromCacheString, setToCacheString } from "./cache";
 import {
 	FullPrivacyImporterState,
 	HistoryImporter,
-	ImporterStateTypes,
 } from "./types";
 
 interface ImportStats {
@@ -48,7 +47,7 @@ const fullPrivacyFileSchema = z.array(
 export type FullPrivacyItem = Unpack<z.infer<typeof fullPrivacyFileSchema>>;
 
 export class FullPrivacyImporter
-	implements HistoryImporter<ImporterStateTypes.fullPrivacy>
+	implements HistoryImporter<"full-privacy">
 {
 	private id: string;
 

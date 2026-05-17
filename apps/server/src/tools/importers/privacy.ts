@@ -28,7 +28,6 @@ import { Infos } from "../../database/schemas/info";
 import { getFromCache, setToCache, SpotifyTrackCacheItem } from "./cache";
 import {
   HistoryImporter,
-  ImporterStateTypes,
   PrivacyImporterState,
 } from "./types";
 
@@ -44,7 +43,7 @@ const privacyFileSchema = z.array(
 export type PrivacyItem = Unpack<z.infer<typeof privacyFileSchema>>;
 
 export class PrivacyImporter
-  implements HistoryImporter<ImporterStateTypes.privacy>
+  implements HistoryImporter<"privacy">
 {
   private id: string;
 
