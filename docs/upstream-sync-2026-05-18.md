@@ -1,9 +1,9 @@
 # Upstream Sync Analysis
 
-**Date:** 2026-05-18
-**Upstream Repository:** https://github.com/Yooooomi/your_spotify
-**Fork Repository:** https://github.com/dgherman/your_spotify
-**Previous sync:** none — first sync. Pickup point determined from merge-base `9658231` (bumped to 1.19.0).
+- **Date:** 2026-05-18
+- **Upstream Repository:** https://github.com/Yooooomi/your_spotify
+- **Fork Repository:** https://github.com/dgherman/your_spotify
+- **Previous sync:** none — first sync. Pickup point determined from merge-base `9658231` (bumped to 1.19.0).
 
 ## Current State
 
