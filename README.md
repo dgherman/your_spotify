@@ -11,6 +11,41 @@
 **YourSpotify** is a self-hosted application that tracks what you listen and offers you a dashboard to explore statistics about it!
 It's composed of a web server which polls the Spotify API every now and then and a web application on which you can explore your statistics.
 
+---
+
+## Fork vs Upstream
+
+This is `dgherman/your_spotify`, a direct fork of [`Yooooomi/your_spotify`](https://github.com/Yooooomi/your_spotify). Last upstream sync: see `docs/upstream-sync-*.md`.
+
+### Fork has (upstream does not)
+
+| Area | Change | Files |
+|------|--------|-------|
+| Polling | `LOOP_INTERVAL_MS` env var to configure poll-cycle interval (default 10min, upstream is 2min hard-coded) | `apps/server/src/spotify/looper.ts`, `apps/server/src/tools/env.ts` |
+| Rate limiting | `SpotifyRateLimitError` + retry-after parsing in `retryPromise`; bubbles up on 429 instead of hammering 10 retries | `apps/server/src/tools/misc.ts` |
+| Rate limiting | Polling pauses for retry-after + 60s buffer when Spotify returns 429 | `apps/server/src/spotify/looper.ts` |
+| Import resilience | 403/404/429 tolerance in singular and batch Spotify getters — skip failing items instead of failing the whole import | `apps/server/src/tools/apis/spotifyApi.ts` |
+| Import resilience | Spotify batch endpoints (`/v1/albums`, `/v1/artists`, `/v1/tracks`) used during full-privacy import to reduce 429s | `apps/server/src/tools/apis/spotifyApi.ts`, `apps/server/src/tools/importers/full_privacy.ts` |
+| Import resilience | `/v1/search` path for full-privacy import lookups + summary stats at end of run | `apps/server/src/tools/importers/full_privacy.ts` |
+| Import resilience | Import failure no longer permanently locks user out — surface error and allow retry | `apps/server/src/tools/importers/importer.ts` |
+| Build | `Dockerfile.client.production` + `Dockerfile.server.production` pinned to `pnpm@9` | `Dockerfile.*.production` |
+| Build | `package.json` `onlyBuiltDependencies` allowlist (`core-js`, `unrs-resolver`) — targeted alternative to upstream's blanket `--dangerously-allow-all-builds` flag | `package.json` |
+| CI | `.github/workflows/build.yml` — multi-arch Docker images pushed to GHCR on every push | `.github/workflows/build.yml` |
+
+### Upstream has (fork deliberately skips)
+
+| Area | Change | Reason |
+|------|--------|--------|
+| Build | `--dangerously-allow-all-builds` flag in non-production `Dockerfile.client` / `Dockerfile.server` | Fork uses targeted `onlyBuiltDependencies` allowlist instead |
+
+### Both have but differently
+
+| Area | Upstream | Fork |
+|------|----------|------|
+| Per-request throttle | `SPOTIFY_API_DELAY_MS` env var (default 2000ms) via `PromiseQueue` | Same env var (synced in); fork **stacks** it with `LOOP_INTERVAL_MS` + retry-after handling for layered protection |
+
+---
+
 # Table of contents
 
 - [Prerequisites](#prerequisites)
