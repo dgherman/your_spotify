@@ -36,7 +36,7 @@ This is `dgherman/your_spotify`, a direct fork of [`Yooooomi/your_spotify`](http
 
 | Area | Change | Reason |
 |------|--------|--------|
-| Build | `--dangerously-allow-all-builds` flag in non-production `Dockerfile.client` / `Dockerfile.server` | Fork uses targeted `onlyBuiltDependencies` allowlist instead |
+| Build | `--dangerously-allow-all-builds` flag in all Dockerfiles (production + non-production) | Fork pins `pnpm@9` which doesn't support the flag (pnpm 10 only); relies on pnpm 9 looser default + `onlyBuiltDependencies` allowlist in `package.json` |
 
 ### Both have but differently
 
